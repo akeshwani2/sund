@@ -1,6 +1,10 @@
 [
     {
-      "origin": ["http://localhost:3001", "https://your-production-domain.com"],
+      "origin": [
+        "http://localhost:3000",
+        "https://sunday-smoky.vercel.app",
+        "https://*.vercel.app"
+      ],
       "method": ["PUT", "POST", "GET", "DELETE"],
       "responseHeader": ["Content-Type", "Authorization"],
       "maxAgeSeconds": 3600

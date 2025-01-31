@@ -390,6 +390,14 @@ const Chat = (props: Props) => {
     );
   };
 
+  useEffect(() => {
+    if (isLoading) {
+      console.log('Loading state active');
+      console.log('Chat thread:', chatThread);
+      console.log('Current mode:', chatThread?.chats[chatThread.chats.length - 1]?.mode);
+    }
+  }, [isLoading, chatThread]);
+
   if (isFetching) {
     return (
       <div className={styles.container}>
