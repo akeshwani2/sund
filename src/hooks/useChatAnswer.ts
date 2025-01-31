@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   updateAnswer,
@@ -40,7 +40,7 @@ const useChatAnswer = ({
   const ai = useSelector(selectAI);
   const userId = userDetails.uid;
 
-  const [controller, setController] = useState<AbortController | null>(null);
+  const controller = useRef<AbortController | null>(null);
 
   const handleSave = async () => {
     if (userId) {
@@ -66,16 +66,18 @@ const useChatAnswer = ({
     }
   };
 
-  const handleAnswer = async (chat: ChatType, data?: string) => {
+  const handleAnswer = async (chat: ChatType, context?: string, chatHistory?: any[]) => {
     setIsLoading(true);
     setIsCompleted(false);
-    const newController = new AbortController();
-    setController(newController);
+    setIsStreaming(true);
+
+    // Create new controller for this request
+    controller.current = new AbortController();
 
     let messages = chatThread.messages;
     
     if (messages.length === 0) {
-      messages = getInitialMessages(chat, data);
+      messages = getInitialMessages(chat, context);
     } else {
       messages = [...messages, { role: "user", content: chat.question }];
     }
@@ -106,7 +108,7 @@ const useChatAnswer = ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages,
+          messages: messages,
           model: chat?.mode === "image" ? "gpt-4o" : ai.model,
           temperature: ai.temperature,
           max_tokens: ai.maxLength,
@@ -114,12 +116,12 @@ const useChatAnswer = ({
           frequency_penalty: ai.frequency,
           presence_penalty: ai.presence,
         }),
-        signal: newController.signal,
+        signal: controller.current.signal,
       });
 
       if (!response.ok) {
         setError("Something went wrong. Please try again later.");
-        setErrorFunction(() => handleAnswer.bind(null, chat, data));
+        setErrorFunction(() => handleAnswer.bind(null, chat, context, chatHistory));
         return;
       }
 
@@ -235,9 +237,9 @@ const useChatAnswer = ({
         return;
       }
       setError("Something went wrong. Please try again later.");
-      setErrorFunction(() => handleAnswer.bind(null, chat, data));
+      setErrorFunction(() => handleAnswer.bind(null, chat, context, chatHistory));
     } finally {
-      setController(null);
+      controller.current = null;
     }
   };
 
@@ -245,7 +247,7 @@ const useChatAnswer = ({
     setIsLoading(true);
     setIsCompleted(false);
     const newController = new AbortController();
-    setController(newController);
+    controller.current = newController;
 
     const lastChat = chatThread.chats[chatThread.chats.length - 1];
     const lastUserMessage = chatThread.messages.findLast(
@@ -263,20 +265,22 @@ const useChatAnswer = ({
     if (systemMessage) {
       messages.push(systemMessage);
     }
-    chatThread.chats.slice(0, -1).forEach((prevChat) => {
-      messages.push({ role: "user", content: prevChat.question });
-      if (prevChat.answer) {
-        messages.push({ role: "assistant", content: prevChat.answer });
-      }
-    });
 
+    // Add all previous messages to maintain context
+    messages.push(...chatThread.messages.filter(msg => 
+      msg.role !== "system" && 
+      msg !== lastUserMessage && 
+      msg.content !== lastChat.answer
+    ));
+
+    // Add the last user message
     messages.push({
       role: "user",
       content: lastUserMessage?.content ?? lastChat.question,
     });
 
     if (ai.customPrompt.length > 0) {
-      messages.splice(messages.length - 1, 0, {
+      messages.push({
         role: "system",
         content: ai.customPrompt,
       });
@@ -287,7 +291,7 @@ const useChatAnswer = ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages,
+          messages: messages,
           model: lastChat.mode === "image" ? "gpt-4o" : ai.model,
           temperature: ai.temperature,
           max_tokens: ai.maxLength,
@@ -326,19 +330,12 @@ const useChatAnswer = ({
             break;
           }
         }
-        const lastAssistantMessageIndex = chatThread.messages.findLastIndex(
-          (message) => message.role === "assistant"
+        dispatch(
+          addMessage({
+            threadId,
+            message: { role: "assistant", content: answer },
+          })
         );
-
-        if (lastAssistantMessageIndex !== -1) {
-          dispatch(
-            updateMessage({
-              threadId,
-              messageIndex: lastAssistantMessageIndex,
-              message: { role: "assistant", content: answer },
-            })
-          );
-        }
         setIsStreaming(false);
         setIsCompleted(true);
         handleSave();
@@ -354,16 +351,16 @@ const useChatAnswer = ({
       setError("Something went wrong. Please try again later.");
       setErrorFunction(() => handleRewrite);
     } finally {
-      setController(null);
+      controller.current = null;
     }
   };
 
-  const handleCancel = () => {
-    if (controller) {
-      controller.abort();
-      setIsStreaming(false);
+  const handleCancel = useCallback(() => {
+    if (controller.current) {
+      controller.current.abort();
+      controller.current = null;
     }
-  };
+  }, []);
 
   return {
     handleAnswer,
