@@ -1,5 +1,6 @@
 export const handleMode = async (text: string) => {
   try {
+    console.log("Sending request to /api/tools");
     const response = await fetch("/api/tools", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -17,11 +18,17 @@ export const handleMode = async (text: string) => {
         { role: "user", content: text },
       ]),
     });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const data = await response.json();
     console.log("Mode and arguments:", data);
     return { mode: data.mode, arg: data.arg };
   } catch (error) {
-    console.error("Error fetching mode and arguments:", error);
-    throw error;
+    console.error("Error in handleMode:", error);
+    // Fallback to chat mode if there's an error
+    return { mode: "chat", arg: "" };
   }
 };

@@ -76,7 +76,9 @@ const Chat = (props: Props) => {
         if (lastChatId !== lastProcessedChatRef.current) {
           if (!lastChat.mode) {
             try {
+              console.log("Determining mode for question:", lastChat.question);
               const { mode, arg } = await handleMode(lastChat.question);
+              console.log("Received mode:", mode, "arg:", arg);
               let parsedArg;
               try {
                 parsedArg = arg ? JSON.parse(arg) : {};

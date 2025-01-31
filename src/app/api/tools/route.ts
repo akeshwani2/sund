@@ -86,6 +86,7 @@ export async function POST(req: Request) {
   ];
 
   try {
+    console.log("Creating OpenAI chat completion");
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: messages,
@@ -93,9 +94,12 @@ export async function POST(req: Request) {
       tool_choice: "auto",
     });
 
+    console.log("OpenAI response:", response);
+    
     // Check if tool_calls are present in the response
     const toolCalls = response.choices[0].message?.tool_calls;
     if (!toolCalls) {
+      console.log("No tool calls found, defaulting to chat mode");
       return new Response(JSON.stringify({ mode: "chat", arg: "" }), {
         status: 200,
       });
@@ -116,10 +120,11 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Error calling OpenAI:", error);
+    console.error("Detailed OpenAI error:", error);
+    // Return chat mode as fallback
     return new Response(
-      JSON.stringify({ error: "Failed to process the input" }),
-      { status: 500 }
+      JSON.stringify({ mode: "chat", arg: "" }),
+      { status: 200 }
     );
   }
 }
