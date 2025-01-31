@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     console.log('Received state (UID):', state);
     console.log('OAuth tokens received:', tokens);
 
-    console.log(`Successfully stored tokens for user ${state}`);
+    console.log(`Successfully stored token for user ${state}`);
 
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_BASE_URL}/`,
