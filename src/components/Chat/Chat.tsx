@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import styles from "./Chat.module.css";
 import Source from "../Source/Source";
 import Answer from "../Answer/Answer";
@@ -46,11 +46,11 @@ const Chat = (props: Props) => {
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [chatThread?.chats]);
+  // Extract complex dependencies into variables
+  const lastChat = chatThread?.chats[chatThread.chats.length - 1];
+  const lastChatMode = lastChat?.mode;
+  const lastChatSearchResults = lastChat?.searchResults;
+  const lastChatAnswer = lastChat?.answer;
 
   const { handleAnswer, handleRewrite, handleCancel } = useChatAnswer({
     threadId: id,
@@ -66,6 +66,184 @@ const Chat = (props: Props) => {
   const lastProcessedChatRef = useRef<number>(0);
   const chatIdCounterRef = useRef<number>(0);
 
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatThread?.chats]);
+
+  // Wrap handlers in useCallback with proper dependencies
+  const handleSearch = useCallback(async (chatIndex: number) => {
+    const chat = chatThread?.chats[chatIndex];
+    setIsLoading(true);
+    setIsCompleted(false);
+
+    try {
+      if (chat?.mode === "search") {
+        const response = await fetch(
+          `/api/search?q=${encodeURIComponent(
+            chat?.query + " " + chat?.question
+          )}`
+        );
+
+        if (!response.ok) {
+          setError("Failed to fetch search results");
+          setErrorFunction(() => handleSearch.bind(null, chatIndex));
+          return;
+        }
+
+        const searchData = await response.json();
+
+        dispatch(
+          updateSearch({
+            threadId: id,
+            chatIndex,
+            searchResults: searchData,
+          })
+        );
+        setError("");
+
+        const data = searchData?.data?.webPages?.value?.slice(0, 4);
+        if (!data || data.length === 0) {
+          throw new Error("No valid search results found to scrape.");
+        }
+
+        const urlsToScrape = data.map((item: any) => item.url).join(",");
+        const scrapeResponse = await fetch(`/api/scrape?urls=${urlsToScrape}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!scrapeResponse.ok) {
+          throw new Error("Failed to scrape website data");
+        }
+
+        const scrapedData = await scrapeResponse.text();
+        await handleAnswer(chat, scrapedData);
+
+        return searchData;
+      } else {
+        throw new Error("Mode is not search");
+      }
+    } catch (error) {
+      console.error("Error fetching or processing search results:", error);
+      setError("Error fetching or processing search results");
+      setErrorFunction(() => handleSearch.bind(null, chatIndex));
+    }
+  }, [dispatch, id, handleAnswer]);
+
+  const handleWeather = useCallback(async (location: string, chatIndex: number) => {
+    const chat = chatThread?.chats[chatIndex];
+    setIsLoading(true);
+    setIsCompleted(false);
+
+    try {
+      if (chat?.mode === "weather") {
+        const response = await fetch(
+          `/api/weather?city=${encodeURIComponent(location)}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch weather data");
+        }
+
+        const weatherData = await response.json();
+        console.log("Weather Data:", weatherData);
+
+        dispatch(
+          updateWeather({
+            threadId: id,
+            chatIndex,
+            weatherResults: weatherData,
+          })
+        );
+        setError("");
+        await handleAnswer(chat, JSON.stringify(weatherData));
+      } else {
+        throw new Error("Mode is not weather");
+      }
+    } catch (error) {
+      console.error("Error fetching or processing weather data:", error);
+      setError("Error fetching or processing weather data");
+      setErrorFunction(() => handleWeather.bind(null, location, chatIndex));
+    }
+  }, [dispatch, id, handleAnswer]);
+
+  const handleStock = useCallback(async (stock: string, chatIndex: number) => {
+    const chat = chatThread?.chats[chatIndex];
+    setIsLoading(true);
+    setIsCompleted(false);
+
+    try {
+      if (chat?.mode === "stock") {
+        const response = await fetch(
+          `/api/stock?symbol=${encodeURIComponent(stock)}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch stock data");
+        }
+
+        const stocksData = await response.json();
+        console.log("stock Data:", stocksData);
+
+        dispatch(
+          updateStock({
+            threadId: id,
+            chatIndex,
+            stocksResults: stocksData,
+          })
+        );
+        setError("");
+        await handleAnswer(chat, JSON.stringify(stocksData));
+      } else {
+        throw new Error("Mode is not stock");
+      }
+    } catch (error) {
+      console.error("Error fetching or processing stock data:", error);
+      setError("Error fetching or processing stock data");
+      setErrorFunction(() => handleStock.bind(null, stock, chatIndex));
+    }
+  }, [dispatch, id, handleAnswer]);
+
+  const handleDictionary = useCallback(async (word: string, chatIndex: number) => {
+    const chat = chatThread?.chats[chatIndex];
+    setIsLoading(true);
+    setIsCompleted(false);
+
+    try {
+      if (chat?.mode === "dictionary") {
+        const response = await fetch(
+          `/api/dictionary?word=${encodeURIComponent(word)}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch weather data");
+        }
+
+        const dictionaryData = await response.json();
+        console.log("dictionary Data:", dictionaryData);
+
+        dispatch(
+          updateDictionary({
+            threadId: id,
+            chatIndex,
+            dictionaryResults: dictionaryData,
+          })
+        );
+        setError("");
+        await handleAnswer(chat, JSON.stringify(dictionaryData));
+      } else {
+        throw new Error("Mode is not dictoionary");
+      }
+    } catch (error) {
+      console.error("Error fetching or processing dictionary data:", error);
+      setError("Error fetching or processing dictionary data");
+      setErrorFunction(() => handleDictionary.bind(null, word, chatIndex));
+    }
+  }, [dispatch, id, handleAnswer]);
+
+  // Update useEffect dependencies
   useEffect(() => {
     const processChatThread = async () => {
       if (chatThread && chatThread.chats.length > 0) {
@@ -169,184 +347,21 @@ const Chat = (props: Props) => {
         chatIdCounterRef.current++;
       }
     };
-
     processChatThread();
   }, [
     chatThread?.chats.length,
-    chatThread?.chats[chatThread?.chats.length - 1]?.mode,
-    chatThread?.chats[chatThread?.chats.length - 1]?.searchResults,
-    chatThread?.chats[chatThread?.chats.length - 1]?.answer,
+    lastChatMode,
+    lastChatSearchResults,
+    lastChatAnswer,
+    handleAnswer,
+    handleDictionary,
+    handleSearch,
+    handleStock,
+    handleWeather,
+    dispatch,
+    error,
+    id
   ]);
-
-  const handleSearch = async (chatIndex: number) => {
-    const chat = chatThread?.chats[chatIndex];
-    setIsLoading(true);
-    setIsCompleted(false);
-
-    try {
-      if (chat?.mode === "search") {
-        const response = await fetch(
-          `/api/search?q=${encodeURIComponent(
-            chat?.query + " " + chat?.question
-          )}`
-        );
-
-        if (!response.ok) {
-          setError("Failed to fetch search results");
-          setErrorFunction(() => handleSearch.bind(null, chatIndex));
-          return;
-        }
-
-        const searchData = await response.json();
-
-        dispatch(
-          updateSearch({
-            threadId: id,
-            chatIndex,
-            searchResults: searchData,
-          })
-        );
-        setError("");
-
-        const data = searchData?.data?.webPages?.value?.slice(0, 4);
-        if (!data || data.length === 0) {
-          throw new Error("No valid search results found to scrape.");
-        }
-
-        const urlsToScrape = data.map((item: any) => item.url).join(",");
-        const scrapeResponse = await fetch(`/api/scrape?urls=${urlsToScrape}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-
-        if (!scrapeResponse.ok) {
-          throw new Error("Failed to scrape website data");
-        }
-
-        const scrapedData = await scrapeResponse.text();
-        await handleAnswer(chat, scrapedData);
-
-        return searchData;
-      } else {
-        throw new Error("Mode is not search");
-      }
-    } catch (error) {
-      console.error("Error fetching or processing search results:", error);
-      setError("Error fetching or processing search results");
-      setErrorFunction(() => handleSearch.bind(null, chatIndex));
-    }
-  };
-
-  const handleWeather = async (location: string, chatIndex: number) => {
-    const chat = chatThread?.chats[chatIndex];
-    setIsLoading(true);
-    setIsCompleted(false);
-
-    try {
-      if (chat?.mode === "weather") {
-        const response = await fetch(
-          `/api/weather?city=${encodeURIComponent(location)}`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch weather data");
-        }
-
-        const weatherData = await response.json();
-        console.log("Weather Data:", weatherData);
-
-        dispatch(
-          updateWeather({
-            threadId: id,
-            chatIndex,
-            weatherResults: weatherData,
-          })
-        );
-        setError("");
-        await handleAnswer(chat, JSON.stringify(weatherData));
-      } else {
-        throw new Error("Mode is not weather");
-      }
-    } catch (error) {
-      console.error("Error fetching or processing weather data:", error);
-      setError("Error fetching or processing weather data");
-      setErrorFunction(() => handleWeather.bind(null, location, chatIndex));
-    }
-  };
-
-  const handleStock = async (stock: string, chatIndex: number) => {
-    const chat = chatThread?.chats[chatIndex];
-    setIsLoading(true);
-    setIsCompleted(false);
-
-    try {
-      if (chat?.mode === "stock") {
-        const response = await fetch(
-          `/api/stock?symbol=${encodeURIComponent(stock)}`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch stock data");
-        }
-
-        const stocksData = await response.json();
-        console.log("stock Data:", stocksData);
-
-        dispatch(
-          updateStock({
-            threadId: id,
-            chatIndex,
-            stocksResults: stocksData,
-          })
-        );
-        setError("");
-        await handleAnswer(chat, JSON.stringify(stocksData));
-      } else {
-        throw new Error("Mode is not stock");
-      }
-    } catch (error) {
-      console.error("Error fetching or processing stock data:", error);
-      setError("Error fetching or processing stock data");
-      setErrorFunction(() => handleStock.bind(null, stock, chatIndex));
-    }
-  };
-
-  const handleDictionary = async (word: string, chatIndex: number) => {
-    const chat = chatThread?.chats[chatIndex];
-    setIsLoading(true);
-    setIsCompleted(false);
-
-    try {
-      if (chat?.mode === "dictionary") {
-        const response = await fetch(
-          `/api/dictionary?word=${encodeURIComponent(word)}`
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch weather data");
-        }
-
-        const dictionaryData = await response.json();
-        console.log("dictionary Data:", dictionaryData);
-
-        dispatch(
-          updateDictionary({
-            threadId: id,
-            chatIndex,
-            dictionaryResults: dictionaryData,
-          })
-        );
-        setError("");
-        await handleAnswer(chat, JSON.stringify(dictionaryData));
-      } else {
-        throw new Error("Mode is not dictoionary");
-      }
-    } catch (error) {
-      console.error("Error fetching or processing dictionary data:", error);
-      setError("Error fetching or processing dictionary data");
-      setErrorFunction(() => handleDictionary.bind(null, word, chatIndex));
-    }
-  };
 
   const handleSend = (text: string) => {
     if (text.trim() !== "") {
@@ -360,8 +375,10 @@ const Chat = (props: Props) => {
     }
   };
 
+  // Fix useMemo dependencies
+  const lastAnswer = chatThread?.chats[chatThread.chats.length - 1]?.answer;
   const processedAnswer = useMemo(() => {
-    let answer = chatThread?.chats[chatThread.chats.length - 1].answer;
+    let answer = lastAnswer;
     
     // Extract and wrap terminal blocks
     answer = answer?.replace(/```terminal\n(DRAFT_CONTENT|SEND_CONTENT): ([\s\S]*?)\n```/g, (match, type, content) => {
@@ -370,7 +387,7 @@ const Chat = (props: Props) => {
     });
 
     return answer;
-  }, [chatThread?.chats[chatThread.chats.length - 1].answer]);
+  }, [lastAnswer]);
 
   const TerminalBlock = ({ type, children }: { type: 'draft' | 'send', children: string }) => {
     const header = type === 'draft' ? '📝 Email Draft Preview' : '📤 Ready to Send';
