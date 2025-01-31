@@ -45,7 +45,12 @@ export async function GET(req: Request) {
     console.log(`Successfully stored tokens for user ${state}`);
 
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/`
+      `${process.env.NEXT_PUBLIC_BASE_URL}/`,
+      {
+        headers: {
+          'Set-Cookie': `gmail_auth=verified; Path=/; SameSite=Lax; Secure`
+        }
+      }
     );
   } catch (error) {
     console.error('Gmail connection failed:', error);
