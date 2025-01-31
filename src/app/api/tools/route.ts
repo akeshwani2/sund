@@ -1,130 +1,75 @@
 import OpenAI from "openai";
+import { NextResponse } from "next/server";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+export const runtime = "nodejs";
+
 export async function POST(req: Request) {
-  if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({
-        error: "Method not allowed, only POST requests are accepted.",
-      }),
-      { status: 405 }
-    );
-  }
-
-  const messages = await req.json();
-
-  const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
-    {
-      type: "function",
-      function: {
-        name: "search",
-        description: "Search for information based on a query",
-        parameters: {
-          type: "object",
-          properties: {},
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "stock",
-        description: "Get the latest stock information for a given symbol",
-        parameters: {
-          type: "object",
-          properties: {
-            symbol: {
-              type: "string",
-              description: "Stock symbol to fetch data for.",
-            },
-          },
-          required: ["symbol"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "dictionary",
-        description: "Get dictionary information for a given word",
-        parameters: {
-          type: "object",
-          properties: {
-            word: {
-              type: "string",
-              description: "Word to look up in the dictionary.",
-            },
-          },
-          required: ["word"],
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "weather",
-        description: "Get the current weather in a given location",
-        parameters: {
-          type: "object",
-          properties: {
-            location: {
-              type: "string",
-              description: "City name to fetch the weather for.",
-            },
-            unit: {
-              type: "string",
-              enum: ["celsius", "fahrenheit"],
-              description: "Temperature unit.",
-            },
-          },
-          required: ["location"],
-        },
-      },
-    },
-    // Add more functions as needed
-  ];
-
   try {
+    const messages = await req.json();
+    console.log("Received messages:", messages);
+
+    const tools = [
+      {
+        type: "function" as const,
+        function: {
+          name: "search",
+          description: "Search for information on the internet",
+          parameters: {
+            type: "object",
+            properties: {},
+          },
+        },
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "chat",
+          description: "Have a conversation",
+          parameters: {
+            type: "object",
+            properties: {},
+          },
+        },
+      },
+      // Add other tools here
+    ];
+
     console.log("Creating OpenAI chat completion");
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-3.5-turbo",  // Changed from gpt-4o-mini which doesn't exist
       messages: messages,
-      tools,
+      tools: tools,
       tool_choice: "auto",
     });
 
     console.log("OpenAI response:", response);
     
-    // Check if tool_calls are present in the response
-    const toolCalls = response.choices[0].message?.tool_calls;
-    if (!toolCalls) {
-      console.log("No tool calls found, defaulting to chat mode");
-      return new Response(JSON.stringify({ mode: "chat", arg: "" }), {
-        status: 200,
-      });
+    if (!response.choices[0].message) {
+      console.log("No message in response, defaulting to chat mode");
+      return NextResponse.json({ mode: "chat", arg: "" });
     }
 
-    // Process the tool calls if present
-    const firstToolCall = toolCalls[0];
-    const modeAndArguments =
-      Object.keys(firstToolCall.function.arguments).length === 2
-        ? ""
-        : firstToolCall.function.arguments;
+    const toolCalls = response.choices[0].message.tool_calls;
+    if (!toolCalls) {
+      console.log("No tool calls found, defaulting to chat mode");
+      return NextResponse.json({ mode: "chat", arg: "" });
+    }
 
-    return new Response(
-      JSON.stringify({
-        mode: firstToolCall.function.name,
-        arg: modeAndArguments,
-      }),
-      { status: 200 }
-    );
+    const firstToolCall = toolCalls[0];
+    return NextResponse.json({
+      mode: firstToolCall.function.name,
+      arg: firstToolCall.function.arguments,
+    });
+
   } catch (error) {
     console.error("Detailed OpenAI error:", error);
-    // Return chat mode as fallback
-    return new Response(
-      JSON.stringify({ mode: "chat", arg: "" }),
-      { status: 200 }
-    );
+    // Return chat mode as fallback with error details
+    return NextResponse.json({ 
+      mode: "chat", 
+      arg: "", 
+      error: error instanceof Error ? error.message : "Unknown error" 
+    });
   }
 }
