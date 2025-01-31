@@ -38,7 +38,7 @@ export async function POST(req: Request) {
 
     console.log("Creating OpenAI chat completion");
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",  // Changed from gpt-4o-mini which doesn't exist
+      model: "gpt-4o-mini",  // Changed from gpt-4o-mini which doesn't exist
       messages: messages,
       tools: tools,
       tool_choice: "auto",
