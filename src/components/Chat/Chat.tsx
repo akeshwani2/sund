@@ -360,6 +360,7 @@ const Chat = (props: Props) => {
     }
   };
 
+  const lastAnswer = chatThread?.chats[chatThread.chats.length - 1]?.answer;
   const processedAnswer = useMemo(() => {
     let answer = chatThread?.chats[chatThread.chats.length - 1].answer;
     
@@ -370,7 +371,7 @@ const Chat = (props: Props) => {
     });
 
     return answer;
-  }, [chatThread?.chats[chatThread.chats.length - 1].answer]);
+  }, [lastAnswer]);
 
   const TerminalBlock = ({ type, children }: { type: 'draft' | 'send', children: string }) => {
     const header = type === 'draft' ? '📝 Email Draft Preview' : '📤 Ready to Send';

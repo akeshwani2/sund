@@ -55,49 +55,6 @@ const MainPrompt = () => {
     query: "",
   });
 
-  const sentences = [
-    "Welcome to Sunday!",
-    "What's on your mind?",
-    "Feel free to ask anything!",
-  ];
-
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
-  const [displayedText, setDisplayedText] = useState("");
-
-  useEffect(() => {
-    const handleResize = () => setWidth(window.innerWidth);
-    handleResize();
-
-    window.addEventListener("resize", handleResize);
-
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
-    let typingTimeout: NodeJS.Timeout;
-    let currentText = "";
-    const currentSentence = sentences[currentSentenceIndex];
-
-    const type = (index: number) => {
-      if (index < currentSentence.length) {
-        currentText += currentSentence.charAt(index);
-        setDisplayedText(currentText);
-        typingTimeout = setTimeout(() => type(index + 1), 50); // Adjust typing speed here
-      } else {
-        setTimeout(() => {
-          setCurrentSentenceIndex(
-            (prevIndex) => (prevIndex + 1) % sentences.length
-          );
-          setDisplayedText(""); // Clear text for next sentence
-        }, 2000); // Pause before starting the next sentence
-      }
-    };
-
-    type(0);
-
-    return () => clearTimeout(typingTimeout); // Cleanup on unmount
-  }, [currentSentenceIndex]);
-
   const handleFocusChange = (
     website: string,
     query: string,

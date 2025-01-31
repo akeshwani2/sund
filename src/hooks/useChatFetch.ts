@@ -76,7 +76,7 @@ const useChatFetch = (id: string) => {
     };
 
     fetchData();
-  }, []);
+  }, [chatThread, fetchChatThread]);
 
   return { chatThread, isFetching };
 };

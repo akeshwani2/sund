@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import styles from "./History.module.css";
 import Image from "next/image";
 import Auth from "../Auth/Auth";
@@ -44,11 +44,7 @@ const History = () => {
   const [deleting, setDeleting] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatThreadWithTimestamp[]>([]);
 
-  useEffect(() => {
-    fetchChatHistory();
-  }, [isAuthenticated, userDetails.uid]);
-
-  const fetchChatHistory = async () => {
+  const fetchChatHistory = useCallback(async () => {
     if (isAuthenticated && userDetails.uid) {
       setLoading(true);
       const historyRef = collection(db, "users", userDetails.uid, "history");
@@ -64,7 +60,11 @@ const History = () => {
       setChatHistory([]);
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, userDetails.uid]);
+
+  useEffect(() => {
+    fetchChatHistory();
+  }, [fetchChatHistory]);
 
   const handleDelete = async (threadId: string) => {
     if (isAuthenticated && userDetails.uid) {
